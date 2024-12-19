@@ -13,6 +13,19 @@ import random
 EXCEL_BILLS = "monthly_bills.xlsx"
 EXCEL_APPLIANCE_DATA = "appliance_data.xlsx"
 
+def clear_data():
+    try:
+        # Clear the content in the Excel files by resetting them to empty DataFrames with the same columns
+        bills_df = pd.DataFrame(columns=["Month", "Category", "Amount", "Description", "Type", "Service Number"])
+        appliance_data_df = pd.DataFrame(columns=["Item", "Kilovolts (kV)", "Start Time", "Max Limit (kV)", "Total Volts", "Email"])
+        
+        # Save the empty DataFrames back to the Excel files
+        bills_df.to_excel(EXCEL_BILLS, index=False)
+        appliance_data_df.to_excel(EXCEL_APPLIANCE_DATA, index=False)
+
+        st.success("Present Bills Data is cleared successfully!")
+    except Exception as e:
+        st.error(f"Error clearing data: {e}")
 # Function to send an email
 def send_email(subject, body, receiver_email):
     sender_email = "v647414@gmail.com"  # Replace with your email
@@ -48,7 +61,7 @@ appliance_data_df = initialize_excel(EXCEL_APPLIANCE_DATA, ["Item", "Kilovolts (
 
 # Sidebar Navigation
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Data Entry for Bills", "Graphical Reports", "Appliance Voltage Monitoring", "Electricity Bill Prediction"])
+page = st.sidebar.radio("Go to", ["Data Entry for Bills", "Graphical Reports", "Appliance Voltage Monitoring", "Electricity Bill Prediction","Clear Data"])
 
 # ---- DATA ENTRY SECTION ----
 # Initial meter reading
@@ -106,33 +119,36 @@ def generate_business_bill_data(service_number):
         })
 
     return monthly_data
-
+flagb=0
+flagh=0
 # ---- DATA ENTRY SECTION ----
-service_number = st.text_input("Enter Service Number", placeholder="Enter service number")
-connection_type = st.selectbox("Connection Type", ["Household", "Business"])
+if page == "Data Entry for Bills":
+    service_number = st.text_input("Enter Service Number", placeholder="Enter service number")
+    connection_type = st.selectbox("Connection Type", ["Household", "Business"])
+    if st.button("Get Bill Data"):
+        if service_number:
+            try:
+                bills_df = pd.read_excel(EXCEL_BILLS)
+            except FileNotFoundError:
+                bills_df = pd.DataFrame(columns=["Month", "Category", "Amount", "Description", "Type", "Service Number"])
 
-if st.button("Generate Bill Data"):
-    if service_number:
-        try:
-            bills_df = pd.read_excel(EXCEL_BILLS)
-        except FileNotFoundError:
-            bills_df = pd.DataFrame(columns=["Month", "Category", "Amount", "Description", "Type", "Service Number"])
+            # Generate bill data based on the connection type
+            if connection_type == "Household":
+                generated_data = generate_household_bill_data(service_number)
+                flagh=1
+            elif connection_type == "Business":
+                generated_data = generate_business_bill_data(service_number)
+                flagb=1
 
-        # Generate bill data based on the connection type
-        if connection_type == "Household":
-            generated_data = generate_household_bill_data(service_number)
-        elif connection_type == "Business":
-            generated_data = generate_business_bill_data(service_number)
+            # Append and save the generated data to the bills DataFrame
+            bills_df = pd.concat([bills_df, pd.DataFrame(generated_data)], ignore_index=True)
+            bills_df.to_excel(EXCEL_BILLS, index=False)
 
-        # Append and save the generated data to the bills DataFrame
-        bills_df = pd.concat([bills_df, pd.DataFrame(generated_data)], ignore_index=True)
-        bills_df.to_excel(EXCEL_BILLS, index=False)
-
-        # Output the generated data
-        st.write("Generated Bill Data:")
-        st.write(pd.DataFrame(generated_data))
-    else:
-        st.warning("Please enter a valid service number.")
+            # Output the generated data
+            st.write("Generated Bill Data:")
+            st.write(pd.DataFrame(generated_data))
+        else:
+            st.warning("Please enter a valid service number.")
 
 # ---- GRAPHICAL REPORTS SECTION ----
 elif page == "Graphical Reports":
@@ -261,34 +277,44 @@ elif page == "Electricity Bill Prediction":
             next_month = np.array([[electricity_data['Month'].max() + 1]])
             predicted_amount = model.predict(next_month)
 
+            # Check if there's business data
+            if "Business" in electricity_data['Type'].values:
+                flagb = 1
+            else:
+                flagb = 0
+
+            # Check if there's household data
+            if "Household" in electricity_data['Type'].values:
+                flagh = 1
+            else:
+                flagh = 0
+
             # Separate predictions for Household and Business
-            household_data = electricity_data[electricity_data["Type"] == "Household"]
-            business_data = electricity_data[electricity_data["Type"] == "Business"]
+            if(flagb == 1):
+                business_data = electricity_data[electricity_data["Type"] == "Business"]
+                X_business = business_data[['Month']].values
+                y_business = business_data['Amount'].values
+                model_business = LinearRegression()
+                model_business.fit(X_business, y_business)
+                predicted_business = model_business.predict(np.array([[business_data['Month'].max() + 1]]))
+                units_business = predicted_business[0] / 2  # ₹2 per unit
+                st.write(f"Predicted Electricity Bill for Business for Month {next_month[0][0]} is expected to be: ₹{abs(int(predicted_business[0]))}")
+                st.write(f"Units Consumed by Business for Month {next_month[0][0]} is expected to be: {abs(round(units_business, 2))} units")
 
-            # Predicted Amount for Household
-            X_household = household_data[['Month']].values
-            y_household = household_data['Amount'].values
-            model_household = LinearRegression()
-            model_household.fit(X_household, y_household)
-            predicted_household = model_household.predict(np.array([[household_data['Month'].max() + 1]]))
-
-            # Predicted Amount for Business
-            X_business = business_data[['Month']].values
-            y_business = business_data['Amount'].values
-            model_business = LinearRegression()
-            model_business.fit(X_business, y_business)
-            predicted_business = model_business.predict(np.array([[business_data['Month'].max() + 1]]))
-
-            # Calculate the units consumed
-            units_household = predicted_household[0] / 1.5  # ₹1.5 per unit
-            units_business = predicted_business[0] / 2  # ₹2 per unit
-
-            st.subheader("Prediction Result")
-            st.write(f"Predicted Electricity Bill for Household for Month {next_month[0][0]} is expected to be: ₹{abs(int(predicted_household[0]))}")
-            st.write(f"Units Consumed by Household for Month {next_month[0][0]} is expected to be: {abs(round(units_household, 2))} units")
-
-            st.write(f"Predicted Electricity Bill for Business for Month {next_month[0][0]} is expected to be: ₹{abs(int(predicted_business[0]))}")
-            st.write(f"Units Consumed by Business for Month {next_month[0][0]} is expected to be: {abs(round(units_business, 2))} units")
+            if(flagh == 1):
+                household_data = electricity_data[electricity_data["Type"] == "Household"]
+                X_household = household_data[['Month']].values
+                y_household = household_data['Amount'].values
+                model_household = LinearRegression()
+                model_household.fit(X_household, y_household)
+                predicted_household = model_household.predict(np.array([[household_data['Month'].max() + 1]]))
+                units_household = predicted_household[0] / 1.5  # ₹1.5 per unit
+                st.write(f"Predicted Electricity Bill for Household for Month {next_month[0][0]} is expected to be: ₹{abs(int(predicted_household[0]))}")
+                st.write(f"Units Consumed by Household for Month {next_month[0][0]} is expected to be: {abs(round(units_household, 2))} units")
 
     except Exception as e:
-        st.error(f"Error in prediction: {e}")
+        st.write("Error Occurred!!!")
+        st.write(str(e))  # Print the error to understand what went wrong
+
+elif st.button("Clear Data"):
+    clear_data()
