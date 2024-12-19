@@ -242,11 +242,11 @@ elif page == "Electricity Bill Prediction":
             units_business = predicted_business[0] / 2  # ₹2 per unit
 
             st.subheader("Prediction Result")
-            st.write(f"Predicted Electricity Bill for Household for Month {next_month[0][0]} is expected to be: ₹{abs(int(predicted_household[0]))}")
-            st.write(f"Units Consumed by Household for Month {next_month[0][0]} is expected to be: {abs(round(units_household, 2))} units")
+            st.write(f"Predicted Electricity Bill for Household for Month {next_month[0][0]}: ₹{int(predicted_household[0])}")
+            st.write(f"Units Consumed by Household for Month {next_month[0][0]}: {round(units_household, 2)} units")
 
-            st.write(f"Predicted Electricity Bill for Business for Month {next_month[0][0]} is expected to be: ₹{abs(int(predicted_business[0]))}")
-            st.write(f"Units Consumed by Business for Month {next_month[0][0]} is expected to be: {abs(round(units_business, 2))} units")
+            st.write(f"Predicted Electricity Bill for Business for Month {next_month[0][0]}: ₹{int(predicted_business[0])}")
+            st.write(f"Units Consumed by Business for Month {next_month[0][0]}: {round(units_business, 2)} units")
 
     except Exception as e:
         st.error(f"Error in prediction: {e}")
